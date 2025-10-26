@@ -1,0 +1,10 @@
+.loading-screen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: #b91c1c; /* dark red tone */
+  background-color: #fef2f2; /* light red background */
+}

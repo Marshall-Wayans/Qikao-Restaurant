@@ -1,0 +1,171 @@
+.footer {
+  background: #111;
+  color: #fff;
+  padding: 4rem 2rem 2rem;
+  font-family: "Poppins", sans-serif;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* ===== Footer Grid ===== */
+.footer-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 2rem;
+  margin-bottom: 2.5rem;
+}
+
+/* ===== Footer Section Headings ===== */
+.footer-section h3 {
+  font-size: 1.3rem;
+  margin-bottom: 1rem;
+  color: #f3f3f3;
+}
+
+/* ===== About Section ===== */
+.footer-section.about p {
+  color: #ccc;
+  font-size: 0.95rem;
+  margin-bottom: 1.2rem;
+  line-height: 1.6;
+}
+
+.social-links {
+  display: flex;
+  gap: 1rem;
+}
+
+.social-icon {
+  width: 22px;
+  height: 22px;
+  color: #bbb;
+  transition: color 0.3s ease, transform 0.3s ease;
+}
+
+.social-icon:hover {
+  color: #ff4d00;
+  transform: scale(1.1);
+}
+
+/* ===== Links Section ===== */
+.footer-section.links ul {
+  list-style: none;
+  padding: 0;
+}
+
+.footer-section.links li {
+  margin-bottom: 0.6rem;
+}
+
+.footer-section.links a {
+  color: #ccc;
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.footer-section.links a:hover {
+  color: #ff4d00;
+}
+
+/* ===== Contact Section ===== */
+.footer-section.contact ul {
+  list-style: none;
+  padding: 0;
+}
+
+.footer-section.contact li {
+  display: flex;
+  align-items: flex-start;
+  color: #ccc;
+  font-size: 0.95rem;
+  margin-bottom: 0.6rem;
+  gap: 0.5rem;
+}
+
+.contact-icon {
+  width: 18px;
+  height: 18px;
+  color: #ff4d00;
+  flex-shrink: 0;
+}
+
+/* ===== Newsletter ===== */
+.newsletter-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.newsletter-form input {
+  padding: 0.6rem 1rem;
+  border: none;
+  border-radius: 5px;
+  outline: none;
+  background: #222;
+  color: #eee;
+}
+
+.subscribe-btn {
+  background: #ff4d00;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 0.6rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.subscribe-btn:hover {
+  background: #e03e00;
+}
+
+/* ===== Footer Bottom ===== */
+.footer-bottom {
+  border-top: 1px solid #222;
+  padding-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  text-align: center;
+}
+
+.footer-bottom p {
+  color: #999;
+  font-size: 0.9rem;
+}
+
+.footer-bottom-links {
+  display: flex;
+  gap: 1.2rem;
+}
+
+.footer-bottom-links a {
+  color: #999;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.footer-bottom-links a:hover {
+  color: #ff4d00;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .footer {
+    text-align: center;
+  }
+
+  .footer-section.contact li {
+    justify-content: center;
+  }
+
+  .footer-bottom-links {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
