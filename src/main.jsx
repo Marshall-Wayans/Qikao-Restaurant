@@ -6,8 +6,8 @@ import './styles/style.css'
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+<BrowserRouter basename="/Qikao-Restaurant">
+  <App />
+</BrowserRouter>
   </React.StrictMode>
 )
