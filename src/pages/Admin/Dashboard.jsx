@@ -1,673 +1,620 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+// src/pages/Admin/Dashboard.jsx
+// Reads everything from localStorage via localStore.js — no Firebase needed.
+
+import React, { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  LayoutDashboardIcon,
-  UsersIcon,
-  LineChartIcon,
-  LogOutIcon,
-  TrendingUpIcon,
-  TrendingDownIcon,
-  DollarSignIcon,
-  ShoppingCartIcon,
-  UserIcon,
-  ClipboardListIcon,
-  MenuIcon,
-  XIcon,
-  UploadCloudIcon,
-  KeyIcon,
-  BellIcon,
-  Trash2Icon,
-  CheckIcon,
-  RefreshCw,
+  LayoutDashboardIcon, UsersIcon, ShoppingCartIcon, BellIcon,
+  LogOutIcon, DollarSignIcon, MenuIcon, XIcon, UserIcon,
+  SendIcon, CheckIcon, Trash2Icon, LineChartIcon, PackageIcon,
+  AlertCircleIcon, MessageSquareIcon, CheckCheckIcon, RefreshCwIcon,
 } from "lucide-react";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, LineChart, Line,
 } from "recharts";
-import { initializeApp, getApps, getApp } from "firebase/app";
 import {
-  getFirestore,
-  collection,
-  query,
-  orderBy,
-  onSnapshot,
-  addDoc,
-  doc,
-  updateDoc,
-  deleteDoc,
-  serverTimestamp,
-} from "firebase/firestore";
-import { getAuth, signOut, updatePassword } from "firebase/auth";
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
-
+  Users, Orders, Notifications, Messages,
+  useStore, Session,
+} from "../../store/localStore";
+import { useAuth } from "../../context/AuthContext";
 import "./Dashboard.css";
 
-/* ---------------------- Firebase (self-contained) ---------------------- */
-const firebaseConfig = {
-  apiKey: "AIzaSyAyjaElKlH8kOOkrlRD6DxROgHFU3z-w_M",
-  authDomain: "qikao-dashboard.firebaseapp.com",
-  projectId: "qikao-dashboard",
-  storageBucket: "qikao-dashboard.firebasestorage.app",
-  messagingSenderId: "408735837503",
-  appId: "1:408735837503:web:4536ec593c64b66483778a",
-};
+const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const ZERO_SALES = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((n) => ({ name: n, sales: 0, orders: 0 }));
 
-function initFirebaseSafe() {
-  try {
-    if (!getApps().length) initializeApp(firebaseConfig);
-    else getApp();
-  } catch (err) {
-    console.warn("Firebase init skipped:", err);
-  }
-}
-initFirebaseSafe();
+function fmtKsh(n) { return `Ksh ${(n ?? 0).toLocaleString()}`; }
 
-const db = getFirestore();
-const auth = getAuth();
-const storage = getStorage();
+const STATUS_OPTIONS = ["Processing","Preparing","Delivered","Cancelled"];
 
-/* ---------------------- Defaults & Mock Data ---------------------- */
-const ZERO_SALES = [
-  { name: "Mon", sales: 0 },
-  { name: "Tue", sales: 0 },
-  { name: "Wed", sales: 0 },
-  { name: "Thu", sales: 0 },
-  { name: "Fri", sales: 0 },
-  { name: "Sat", sales: 0 },
-  { name: "Sun", sales: 0 },
-];
-
-const SAMPLE_ORDERS = [
-  { id: "QK123456", customer: "John Doe", total: 0, status: "Delivered", date: "2023-08-15" },
-  { id: "QK123457", customer: "Jane Smith", total: 0, status: "Processing", date: "2023-08-15" },
-  { id: "QK123458", customer: "Michael Johnson", total: 0, status: "Preparing", date: "2023-08-15" },
-  { id: "QK123459", customer: "Sarah Williams", total: 0, status: "Delivered", date: "2023-08-14" },
-  { id: "QK123460", customer: "Robert Brown", total: 0, status: "Cancelled", date: "2023-08-14" },
-];
-
-/* ---------------------- Component ---------------------- */
 export default function AdminDashboard() {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
-  // Sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 900);
+  const [activeSection, setActiveSection] = useState("overview");
+  const [notifTitle, setNotifTitle] = useState("");
+  const [notifMsg, setNotifMsg]     = useState("");
+  const [sending, setSending]       = useState(false);
+  const [sent, setSent]             = useState(false);
+  const [userSearch, setUserSearch] = useState("");
+  const [profileDropOpen, setProfileDropOpen] = useState(false);
+  const profileInputRef = useRef(null);
 
+  // Clear PIN on logout so next admin must re-enter it
+  function handleLogout() {
+    sessionStorage.removeItem("qk_admin_verified");
+    logout();
+    navigate("/signin");
+  }
+
+  // Responsive sidebar
   useEffect(() => {
-    const onResize = () => setSidebarOpen(window.innerWidth >= 900);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    const fn = () => setSidebarOpen(window.innerWidth >= 900);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
   }, []);
 
-  // Dashboard data
-  const [salesData, setSalesData] = useState(ZERO_SALES);
-  const [recentOrders, setRecentOrders] = useState(SAMPLE_ORDERS);
-  const [stats, setStats] = useState({ revenue: 0, orders: 0, users: 0, expenses: 0 });
-
-  // Users real-time
-  const [users, setUsers] = useState([]);
-  const [usersLoading, setUsersLoading] = useState(true);
-
-  // Notifications real-time
-  const [notifications, setNotifications] = useState([]);
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [notifLoading, setNotifLoading] = useState(true);
-
-  // Profile & password
-  const [profile, setProfile] = useState({ name: "Admin User", email: "", photoURL: "" });
-  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
-  const profileInputRef = useRef(null);
-  const [profilePreview, setProfilePreview] = useState("");
-  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
-  const [updatingPassword, setUpdatingPassword] = useState(false);
-
-  // notification send
-  const [newNotifText, setNewNotifText] = useState("");
-  const [sendingNotif, setSendingNotif] = useState(false);
-
-  // listening toggle
-  const [listening, setListening] = useState(true);
-
-  // Refresh placeholder
-  const [refreshing, setRefreshing] = useState(false);
-
-  // Search users
-  const [userSearch, setUserSearch] = useState("");
-
-  /* ---------------------- Firestore listeners ---------------------- */
+  // Close profile dropdown on outside click
   useEffect(() => {
-    if (!db) return;
-
-    // Users: real time
-    setUsersLoading(true);
-    const usersQ = query(collection(db, "users"), orderBy("createdAt", "desc"));
-    const unsubUsers = onSnapshot(
-      usersQ,
-      (snap) => {
-        const arr = [];
-        snap.forEach((d) => {
-          const data = d.data();
-          arr.push({
-            id: d.id,
-            name: data.name ?? "Unknown",
-            email: data.email ?? "",
-            role: data.role ?? "Customer",
-            status: data.status ?? "Active",
-            lastLogin: data.lastLogin ?? null,
-            createdAt: data.createdAt ? data.createdAt.toDate?.() : null,
-            photoURL: data.photoURL ?? "",
-          });
-        });
-        setUsers(arr);
-        setUsersLoading(false);
-      },
-      (err) => {
-        console.error("users onSnapshot error", err);
-        setUsersLoading(false);
-      }
-    );
-
-    // Notifications: real time
-    setNotifLoading(true);
-    const notifQ = query(collection(db, "notifications"), orderBy("createdAt", "desc"));
-    const unsubNotifs = onSnapshot(
-      notifQ,
-      (snap) => {
-        const arr = [];
-        snap.forEach((d) => {
-          const data = d.data();
-          arr.push({
-            id: d.id,
-            text: data.text ?? "",
-            type: data.type ?? "system",
-            createdAt: data.createdAt ? data.createdAt.toDate?.() : new Date(),
-            meta: data.meta ?? null,
-            read: data.read ?? false,
-          });
-        });
-        setNotifications(arr);
-        setNotifLoading(false);
-      },
-      (err) => {
-        console.error("notifications onSnapshot error", err);
-        setNotifLoading(false);
-      }
-    );
-
-    // Placeholder: listen to a stats doc (optional)
-    // const statsDoc = doc(db, "dashboards", "global");
-    // const unsubStats = onSnapshot(statsDoc, (snap) => {
-    //   if (!snap.exists()) {
-    //     setStats({ revenue: 0, orders: 0, users: 0, expenses: 0 });
-    //     setSalesData(ZERO_SALES);
-    //     setRecentOrders(SAMPLE_ORDERS);
-    //     return;
-    //   }
-    //   const d = snap.data();
-    //   setStats({
-    //     revenue: d.revenue ?? 0,
-    //     orders: d.orders ?? 0,
-    //     users: d.users ?? 0,
-    //     expenses: d.expenses ?? 0,
-    //   });
-    //   setSalesData(Array.isArray(d.sales) ? d.sales : ZERO_SALES);
-    //   setRecentOrders(Array.isArray(d.recentOrders) ? d.recentOrders : SAMPLE_ORDERS);
-    // });
-
-    return () => {
-      unsubUsers();
-      unsubNotifs();
-      // unsubStats && unsubStats();
+    const fn = (e) => {
+      if (!e.target.closest?.(".ad-profile-area")) setProfileDropOpen(false);
     };
-  }, [listening]);
+    window.addEventListener("click", fn);
+    return () => window.removeEventListener("click", fn);
+  }, []);
 
-  /* ---------------------- Actions: Notifications ---------------------- */
-  async function sendNotification(e) {
-    e && e.preventDefault();
-    if (!newNotifText.trim()) return;
-    setSendingNotif(true);
-    try {
-      await addDoc(collection(db, "notifications"), {
-        text: newNotifText.trim(),
-        type: "manual",
-        createdAt: serverTimestamp(),
-        meta: { by: auth.currentUser ? auth.currentUser.uid : "admin" },
-        read: false,
-      });
-      setNewNotifText("");
-      // panel will update through onSnapshot
-    } catch (err) {
-      console.error("send notification failed", err);
-      alert("Failed to send notification.");
-    } finally {
-      setSendingNotif(false);
-    }
-  }
+  /* ---- Live data from localStore ---- */
+  const allUsers  = useStore(() => Users.getAll(),         ["qk_users"]);
+  const allOrders = useStore(() => Orders.getAll(),        ["qk_orders"]);
+  const allNotifs = useStore(() => Notifications.forAdmin(),["qk_notifications"]);
+  const allMsgs   = useStore(() => Messages.getAll(),      ["qk_messages"]);
 
-  async function markNotifRead(id) {
-    try {
-      await updateDoc(doc(db, "notifications", id), { read: true });
-    } catch (err) {
-      console.error("mark read failed", err);
-    }
-  }
+  const adminUid      = user?.id || "admin_001";
+  const unreadNotifs  = allNotifs.filter((n) => !n.readBy.includes(adminUid)).length;
+  const unreadMsgs    = allMsgs.filter((m) => !m.readByAdmin).length;
+  const totalRevenue  = allOrders.reduce((s, o) => s + (o.total || 0), 0);
+  const pendingOrders = allOrders.filter((o) => o.status === "Processing" || o.status === "Preparing").length;
 
-  async function removeNotif(id) {
-    if (!window.confirm("Remove this notification?")) return;
-    try {
-      await deleteDoc(doc(db, "notifications", id));
-    } catch (err) {
-      console.error("delete notif failed", err);
-    }
-  }
-
-  /* ---------------------- Profile upload ---------------------- */
-  function triggerProfileSelect() {
-    if (profileInputRef.current) profileInputRef.current.click();
-  }
-
-  async function handleProfileFile(e) {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    const preview = URL.createObjectURL(file);
-    setProfilePreview(preview);
-    setProfileDropdownOpen(false);
-
-    // Upload to firebase storage & update user's doc (if signed-in)
-    try {
-      const user = auth.currentUser;
-      const uid = user ? user.uid : "admin";
-      const sRef = storageRef(storage, `profiles/${uid}/${Date.now()}-${file.name}`);
-      await uploadBytes(sRef, file);
-      const downloadURL = await getDownloadURL(sRef);
-
-      // Update users doc if present
-      try {
-        await updateDoc(doc(db, "users", uid), {
-          photoURL: downloadURL,
-          updatedAt: serverTimestamp(),
-        });
-      } catch (err) {
-        // If doc doesn't exist, optionally create/ignore
-        console.warn("updating users doc with photo failed", err);
+  // Build weekly sales chart from real orders
+  const salesData = (() => {
+    const map = {};
+    ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].forEach((d) => { map[d] = { name: d, sales: 0, orders: 0 }; });
+    allOrders.forEach((o) => {
+      if (o.createdAt) {
+        const dayName = DAYS[new Date(o.createdAt).getDay()];
+        if (map[dayName]) { map[dayName].sales += o.total || 0; map[dayName].orders += 1; }
       }
-    } catch (err) {
-      console.error("profile upload error", err);
-    }
-  }
+    });
+    return Object.values(map);
+  })();
 
-  /* ---------------------- Password change (current admin) ---------------------- */
-  async function handlePasswordChange() {
-    if (!newPassword || newPassword.length < 6) {
-      alert("Password must be at least 6 characters.");
-      return;
-    }
-    setUpdatingPassword(true);
-    try {
-      const user = auth.currentUser;
-      if (!user) {
-        alert("No authenticated user found.");
-        setUpdatingPassword(false);
-        return;
-      }
-      // Note: in many setups you need to reauthenticate user first
-      await updatePassword(user, newPassword);
-      alert("Password updated.");
-      setPasswordModalOpen(false);
-      setNewPassword("");
-    } catch (err) {
-      console.error("updatePassword error", err);
-      alert("Failed to update password (you may need to re-login / reauthenticate).");
-    } finally {
-      setUpdatingPassword(false);
-    }
-  }
- 
-  /* ---------------------- Logout ---------------------- */
-async function handleLogout() {
-  try {
-    await signOut(auth);
-    alert("Logged out successfully!");
-    navigate("/signin"); // <-- use the actual route
-  } catch (err) {
-    console.error("logout failed", err);
-    alert("Logout failed.");
-  }
-}
-
-  /* ---------------------- Utility / UI helpers ---------------------- */
-  function statusClass(status) {
-    switch ((status || "").toLowerCase()) {
-      case "delivered":
-        return "delivered";
-      case "processing":
-        return "processing";
-      case "preparing":
-        return "preparing";
-      default:
-        return "cancelled";
-    }
-  }
-
-  const filteredUsers = users.filter((u) => {
+  const filteredUsers = allUsers.filter((u) => {
     if (!userSearch) return true;
     const q = userSearch.toLowerCase();
-    return (u.name || "").toLowerCase().includes(q) || (u.email || "").toLowerCase().includes(q) || (u.role || "").toLowerCase().includes(q);
+    return (u.name||"").toLowerCase().includes(q) ||
+           (u.email||"").toLowerCase().includes(q) ||
+           (u.role||"").toLowerCase().includes(q);
   });
 
-  /* ---------------------- Refresh placeholder ---------------------- */
-  function handleRefresh() {
-    setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 700);
-    // add real fetch from Firestore if desired
+  /* ---- Actions ---- */
+  async function sendNotification(e) {
+    e.preventDefault();
+    if (!notifMsg.trim()) return;
+    setSending(true);
+    await new Promise((r) => setTimeout(r, 400));
+    Notifications.add({
+      type:       "admin",
+      title:      notifTitle.trim() || "Admin Message 📢",
+      message:    notifMsg.trim(),
+      targetRole: "all",
+      senderUid:  adminUid,
+      senderName: user?.name || "Admin",
+      senderRole: "admin",
+    });
+    setNotifTitle("");
+    setNotifMsg("");
+    setSending(false);
+    setSent(true);
+    setTimeout(() => setSent(false), 3000);
   }
 
-  /* ---------------------- Close dropdown when clicking outside ---------------------- */
-  useEffect(() => {
-    const onDocClick = (e) => {
-      const target = e.target;
-      if (!target.closest || (!target.closest(".profile-area") && !target.closest(".profile-dropdown"))) {
-        setProfileDropdownOpen(false);
-      }
-    };
-    window.addEventListener("click", onDocClick);
-    return () => window.removeEventListener("click", onDocClick);
-  }, []);
+  function markNotifRead(id) { Notifications.markRead(id, adminUid); }
+  function markAllNotifsRead() { Notifications.markAllRead(adminUid); }
+  function deleteNotif(id) { if (window.confirm("Delete this notification?")) Notifications.delete(id); }
+  function markMsgRead(id) { Messages.markRead(id); }
+  function updateOrderStatus(orderId, status) { Orders.updateStatus(orderId, status); }
+  function deleteUser(id) {
+    if (!window.confirm("Delete this user? This cannot be undone.")) return;
+    Users.delete(id);
+    Notifications.add({
+      type: "system", title: "User Deleted",
+      message: `A user account was deleted by admin`,
+      targetRole: "admin", senderUid: adminUid, senderName: "Admin", senderRole: "admin",
+    });
+  }
+
+  const typeColor = (t) => ({ login:"#22c55e", register:"#3b82f6", order:"#f59e0b", admin:"#ef4444", message:"#8b5cf6", system:"#9ca3af" }[t] || "#9ca3af");
+  const typeIcon  = (t) => ({ login:"🔐", register:"🎉", order:"🛒", admin:"📢", message:"💬", system:"⚙️" }[t] || "🔔");
+
+  const navSections = [
+    { id: "overview",      label: "Overview",       icon: <LayoutDashboardIcon size={17} /> },
+    { id: "orders",        label: "Orders",         icon: <ShoppingCartIcon size={17} />, badge: pendingOrders },
+    { id: "users",         label: "Users",          icon: <UsersIcon size={17} />,         badge: allUsers.length },
+    { id: "notifications", label: "Notifications",  icon: <BellIcon size={17} />,          badge: unreadNotifs },
+    { id: "messages",      label: "Messages",       icon: <MessageSquareIcon size={17} />, badge: unreadMsgs },
+    { id: "analytics",     label: "Analytics",      icon: <LineChartIcon size={17} /> },
+  ];
 
   return (
-    <div className="admindash-root">
-      {/* Sidebar */}
-      <aside className={`admindash-sidebar ${sidebarOpen ? "open" : "closed"}`}>
-        <div className="admindash-sidebar-top">
-          <div className="brand">
-            <h1>Qikao</h1>
-            <span className="brand-sub">Admin</span>
+    <div className="ad-root">
+      {/* SIDEBAR */}
+      <aside className={`ad-sidebar ${sidebarOpen ? "open" : "closed"}`}>
+        <div className="ad-sidebar-brand">
+          <div className="ad-brand-logo">Q</div>
+          <div>
+            <div className="ad-brand-name">Qikao Grill</div>
+            <div className="ad-brand-sub">Admin Panel</div>
           </div>
-          <button className="mobile-close-btn" onClick={() => setSidebarOpen(false)} aria-label="Close sidebar">
-            <XIcon />
-          </button>
+          <button className="ad-sidebar-close" onClick={() => setSidebarOpen(false)}><XIcon size={17} /></button>
         </div>
 
-        <nav className="admindash-nav">
-          <Link to="/admin" className="nav-link active">
-            <LayoutDashboardIcon className="nav-icon" />
-            <span>Dashboard</span>
-          </Link>
-
-          <Link to="/admin/users" className="nav-link">
-            <UsersIcon className="nav-icon" />
-            <span>User Management</span>
-          </Link>
-
-          <Link to="/admin/analytics" className="nav-link">
-            <LineChartIcon className="nav-icon" />
-            <span>Analytics</span>
-          </Link>
-
-          <Link to="/admin/analytics" className="nav-link">
-            <LineChartIcon className="nav-icon" />
-            <span>Notifications</span>
-          </Link>
-
-
+        <nav className="ad-nav">
+          {navSections.map((s) => (
+            <button
+              key={s.id}
+              className={`ad-nav-btn ${activeSection === s.id ? "active" : ""}`}
+              onClick={() => { setActiveSection(s.id); if (window.innerWidth < 900) setSidebarOpen(false); }}
+            >
+              <span className="ad-nav-icon">{s.icon}</span>
+              <span className="ad-nav-label">{s.label}</span>
+              {s.badge > 0 && <span className="ad-nav-badge">{s.badge}</span>}
+            </button>
+          ))}
         </nav>
 
-        <div className="admindash-sidebar-bottom">
-          <button className="admindash-logout" onClick={handleLogout}>
-            <LogOutIcon className="nav-icon" />
-            <span>Logout</span>
+        <div className="ad-sidebar-footer">
+          <button className="ad-logout-btn" onClick={handleLogout}>
+            <LogOutIcon size={15} /> Logout
           </button>
-          <div className="admindash-copyright">© 2025 Qikao</div>
+          <div className="ad-copyright">© 2025 Qikao Grill</div>
         </div>
       </aside>
 
-      {/* Main */}
-      <div className="admindash-main">
-        <header className="admindash-topbar">
-          <div className="left">
-            <button className="hamburger" onClick={() => setSidebarOpen(true)} aria-label="Open sidebar">
-              <MenuIcon />
-            </button>
+      {/* MAIN */}
+      <div className="ad-main">
+        {/* Topbar */}
+        <header className="ad-topbar">
+          <div className="ad-topbar-left">
+            <button className="ad-hamburger" onClick={() => setSidebarOpen(true)}><MenuIcon size={22} /></button>
             <div>
-              <h2>Dashboard</h2>
-              <p className="sub">All stats default to 0 — updates come from Firestore in real time.</p>
+              <h1 className="ad-page-title">{navSections.find((s) => s.id === activeSection)?.label}</h1>
+              <p className="ad-page-sub">Real-time · localStorage</p>
             </div>
           </div>
 
-          <div className="right">
-            <div className="controls">
-              <button className="small-btn" onClick={handleRefresh}><RefreshCw /> {refreshing ? "Refreshing..." : "Refresh"}</button>
-              <button className="small-btn" onClick={() => setListening((s) => !s)}>{listening ? "Live: On" : "Live: Off"}</button>
-            </div>
+          <div className="ad-topbar-right">
+            <button className="ad-topbar-bell" onClick={() => setActiveSection("notifications")}>
+              <BellIcon size={19} />
+              {unreadNotifs > 0 && <span className="ad-bell-badge">{unreadNotifs}</span>}
+            </button>
+            <button className="ad-topbar-bell" onClick={() => setActiveSection("messages")}>
+              <MessageSquareIcon size={19} />
+              {unreadMsgs > 0 && <span className="ad-bell-badge">{unreadMsgs}</span>}
+            </button>
 
-            <div className="icons">
-              <button className="notif-btn" onClick={() => setNotifOpen((s) => !s)} aria-label="Notifications">
-                <BellIcon />
-                {notifications.some(n => !n.read) && <span className="notif-dot" />}
+            <div className="ad-profile-area">
+              <button className="ad-profile-btn" onClick={() => setProfileDropOpen((s) => !s)}>
+                {user?.photoURL
+                  ? <img src={user.photoURL} alt="" className="ad-avatar" />
+                  : <div className="ad-avatar-placeholder"><UserIcon size={16} /></div>
+                }
+                <span className="ad-profile-name">{user?.name || "Admin"}</span>
               </button>
-
-              <div className="profile-area">
-                <button className="profile-button" onClick={() => setProfileDropdownOpen((s) => !s)}>
-                  {profilePreview ? <img src={profilePreview} alt="profile" className="profile-avatar" /> : profile.photoURL ? <img src={profile.photoURL} alt="profile" className="profile-avatar" /> : <div className="avatar-placeholder"><UserIcon /></div>}
-                  <span className="profile-name">{profile.name}</span>
-                </button>
-
-                {profileDropdownOpen && (
-                  <div className="profile-dropdown">
-                    <button className="dropdown-item" onClick={triggerProfileSelect}><UploadCloudIcon className="dd-icon" /> Upload New Photo</button>
-                    <button className="dropdown-item" onClick={() => { setProfileDropdownOpen(false); setPasswordModalOpen(true); }}><KeyIcon className="dd-icon" /> Change Password</button>
+              {profileDropOpen && (
+                <div className="ad-profile-dropdown">
+                  <div style={{ padding: "10px 14px 8px", borderBottom: "1px solid #f0f0f0" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>{user?.name}</div>
+                    <div style={{ fontSize: 11, color: "#9ca3af" }}>{user?.email}</div>
                   </div>
-                )}
-
-                <input ref={profileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleProfileFile} />
-              </div>
+                  <button className="ad-dd-item" onClick={handleLogout}>
+                    <LogOutIcon size={13} /> Sign Out
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </header>
 
-        <main className="admindash-content">
-          {/* Stats */}
-          <section className="stats-grid">
-            <div className="card stat">
-              <div className="icon-wrap icon-revenue"><DollarSignIcon /></div>
-              <div className="stat-body">
-                <div className="label">Total Revenue</div>
-                <div className="value">${(stats.revenue ?? 0).toLocaleString()}</div>
-                <div className="meta positive"><TrendingUpIcon /> <small>+0% from last month</small></div>
-              </div>
-            </div>
+        <main className="ad-content">
 
-            <div className="card stat">
-              <div className="icon-wrap icon-orders"><ShoppingCartIcon /></div>
-              <div className="stat-body">
-                <div className="label">Total Orders</div>
-                <div className="value">{stats.orders ?? 0}</div>
-                <div className="meta positive"><TrendingUpIcon /> <small>+0% from last month</small></div>
-              </div>
-            </div>
-
-            <div className="card stat">
-              <div className="icon-wrap icon-users"><UsersIcon /></div>
-              <div className="stat-body">
-                <div className="label">Total Users</div>
-                <div className="value">{stats.users ?? users.length ?? 0}</div>
-                <div className="meta positive"><TrendingUpIcon /> <small>+0% from last month</small></div>
-              </div>
-            </div>
-
-            <div className="card stat">
-              <div className="icon-wrap icon-expenses"><ClipboardListIcon /></div>
-              <div className="stat-body">
-                <div className="label">Expenses</div>
-                <div className="value">${(stats.expenses ?? 0).toLocaleString()}</div>
-                <div className="meta negative"><TrendingDownIcon /> <small>-0% from last month</small></div>
-              </div>
-            </div>
-          </section>
-
-          {/* Charts + popular */}
-          <section className="two-col">
-            <div className="card chart-card">
-              <h4>Weekly Sales</h4>
-              <div className="chart-area" style={{ height: 300 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={salesData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="sales" fill="#ef4444" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            <div className="card popular-card">
-              <h4>Popular Menu Items</h4>
-              <div className="progress-list">
+          {/* ===== OVERVIEW ===== */}
+          {activeSection === "overview" && (
+            <div className="ad-section">
+              <div className="ad-stats-grid">
                 {[
-                  { name: "Premium Ribeye Steak", pct: 65 },
-                  { name: "BBQ Chicken", pct: 52 },
-                  { name: "Family Feast", pct: 49 },
-                  { name: "Grilled Salmon", pct: 38 },
-                  { name: "Signature Cocktails", pct: 25 },
-                ].map((it) => (
-                  <div key={it.name} className="progress-item">
-                    <div className="progress-header">
-                      <span>{it.name}</span>
-                      <span>{it.pct}%</span>
-                    </div>
-                    <div className="progress-bar">
-                      <div className="progress-fill" style={{ width: `${it.pct}%` }} />
+                  { label: "Total Revenue",   value: fmtKsh(totalRevenue),       icon: <DollarSignIcon size={20} />,   cls: "revenue" },
+                  { label: "Total Orders",    value: allOrders.length,            icon: <ShoppingCartIcon size={20} />, cls: "orders" },
+                  { label: "Registered Users",value: allUsers.length,             icon: <UsersIcon size={20} />,        cls: "users" },
+                  { label: "Pending Orders",  value: pendingOrders,               icon: <PackageIcon size={20} />,      cls: "notifs" },
+                ].map((s) => (
+                  <div key={s.label} className={`ad-stat-card ${s.cls}`}>
+                    <div className="ad-stat-icon">{s.icon}</div>
+                    <div className="ad-stat-body">
+                      <div className="ad-stat-label">{s.label}</div>
+                      <div className="ad-stat-value">{s.value}</div>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-          </section>
 
-          {/* Recent orders */}
-          <section className="card orders">
-            <div className="orders-top">
-              <h4>Recent Orders</h4>
-              <a href="#" className="link-cta">View all orders</a>
-            </div>
-
-            <div className="table-wrap">
-              <table className="orders-table">
-                <thead>
-                  <tr>
-                    <th>Order ID</th>
-                    <th>Customer</th>
-                    <th>Total</th>
-                    <th>Status</th>
-                    <th>Date</th>
-                    <th className="right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentOrders.map((order) => (
-                    <tr key={order.id}>
-                      <td className="mono">{order.id}</td>
-                      <td>{order.customer}</td>
-                      <td>${(order.total || 0).toFixed(2)}</td>
-                      <td><span className={`badge ${statusClass(order.status)}`}>{order.status}</span></td>
-                      <td>{order.date}</td>
-                      <td className="right"><a href="#" className="link-view">View</a></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          {/* Users panel (real-time) */}
-          <section className="card users-card">
-            <div className="users-header">
-              <h4>Users (Real-time)</h4>
-              <div className="users-controls">
-                <input placeholder="Search users (name, email, role)..." value={userSearch} onChange={(e) => setUserSearch(e.target.value)} />
-              </div>
-            </div>
-
-            <div className="users-list">
-              {usersLoading ? <div className="muted">Loading users...</div> : null}
-              {filteredUsers.length === 0 && !usersLoading ? <div className="muted">No users found.</div> : null}
-
-              {filteredUsers.map((u) => (
-                <div className="user-row" key={u.id}>
-                  <div className="user-left">
-                    {u.photoURL ? <img src={u.photoURL} alt="" className="user-avatar" /> : <div className="avatar-letter">{(u.name || " ").charAt(0)}</div>}
-                    <div>
-                      <div className="user-name">{u.name}</div>
-                      <div className="muted small">{u.email}</div>
-                      <div className="muted small">Joined: {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "—"}</div>
-                    </div>
-                  </div>
-
-                  <div className="user-right">
-                    <div className={`status-pill ${u.status === "Active" ? "active" : "inactive"}`}>{u.status}</div>
-                    <div className="muted small">Last: {u.lastLogin ?? "—"}</div>
+              <div className="ad-two-col">
+                <div className="ad-card">
+                  <h3 className="ad-card-title">Weekly Revenue</h3>
+                  <div style={{ height: 240 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={salesData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <Tooltip formatter={(v) => [fmtKsh(v), "Revenue"]} />
+                        <Bar dataKey="sales" fill="#ef4444" radius={[5,5,0,0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
                 </div>
-              ))}
+                <div className="ad-card">
+                  <h3 className="ad-card-title">Order Trend</h3>
+                  <div style={{ height: 240 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={salesData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <Tooltip />
+                        <Line type="monotone" dataKey="orders" stroke="#ef4444" strokeWidth={2.5} dot={{ r: 4, fill: "#ef4444" }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+
+              <div className="ad-card">
+                <div className="ad-card-header-row">
+                  <h3 className="ad-card-title">Recent Orders</h3>
+                  <button className="ad-link-btn" onClick={() => setActiveSection("orders")}>View all →</button>
+                </div>
+                <OrderTable orders={allOrders.slice(0, 5)} onStatusChange={updateOrderStatus} />
+              </div>
+
+              <div className="ad-card">
+                <div className="ad-card-header-row">
+                  <h3 className="ad-card-title">Recent Activity</h3>
+                  <button className="ad-link-btn" onClick={() => setActiveSection("notifications")}>View all →</button>
+                </div>
+                <div className="ad-activity-list">
+                  {allNotifs.slice(0, 7).map((n) => (
+                    <div key={n.id} className={`ad-activity-item ${n.type}`}>
+                      <div className="ad-activity-dot" style={{ background: typeColor(n.type) }} />
+                      <div className="ad-activity-body">
+                        <div className="ad-activity-title">{n.title}</div>
+                        <div className="ad-activity-msg">{n.message}</div>
+                        <div className="ad-activity-time">{n.createdAt ? new Date(n.createdAt).toLocaleString() : ""}</div>
+                      </div>
+                      {!n.readBy.includes(adminUid) && <span className="ad-activity-unread-dot" />}
+                    </div>
+                  ))}
+                  {allNotifs.length === 0 && <p className="ad-muted">No activity yet.</p>}
+                </div>
+              </div>
             </div>
-          </section>
+          )}
+
+          {/* ===== ORDERS ===== */}
+          {activeSection === "orders" && (
+            <div className="ad-section">
+              <div className="ad-section-top-bar">
+                <div className="ad-mini-stats">
+                  <span className="ad-mini-stat"><strong>{allOrders.length}</strong> Total</span>
+                  <span className="ad-mini-stat pending"><strong>{pendingOrders}</strong> Pending</span>
+                  <span className="ad-mini-stat delivered"><strong>{allOrders.filter((o) => o.status === "Delivered").length}</strong> Delivered</span>
+                  <span className="ad-mini-stat revenue-mini"><strong>{fmtKsh(totalRevenue)}</strong> Revenue</span>
+                </div>
+              </div>
+              <div className="ad-card">
+                <h3 className="ad-card-title">All Orders</h3>
+                {allOrders.length === 0
+                  ? <p className="ad-muted">No orders yet. They'll appear here as customers place them.</p>
+                  : <OrderTable orders={allOrders} onStatusChange={updateOrderStatus} />
+                }
+              </div>
+            </div>
+          )}
+
+          {/* ===== USERS ===== */}
+          {activeSection === "users" && (
+            <div className="ad-section">
+              <div className="ad-section-top-bar">
+                <div className="ad-mini-stats">
+                  <span className="ad-mini-stat"><strong>{allUsers.length}</strong> Total Users</span>
+                  <span className="ad-mini-stat active-stat"><strong>{allUsers.filter((u) => u.status === "Active").length}</strong> Active</span>
+                  <span className="ad-mini-stat admin-stat"><strong>{allUsers.filter((u) => u.role === "admin").length}</strong> Admin</span>
+                </div>
+                <input
+                  className="ad-search-input"
+                  placeholder="Search by name, email, role…"
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                />
+              </div>
+              <div className="ad-card">
+                <h3 className="ad-card-title">Registered Users</h3>
+                {filteredUsers.length === 0
+                  ? <p className="ad-muted">{userSearch ? "No users match your search." : "No users yet."}</p>
+                  : (
+                    <div className="ad-users-grid">
+                      {filteredUsers.map((u) => (
+                        <div key={u.id} className="ad-user-card">
+                          <div className="ad-user-avatar-wrap">
+                            {u.photoURL
+                              ? <img src={u.photoURL} alt="" className="ad-user-avatar" />
+                              : <div className="ad-user-initials">{(u.name || "?").charAt(0).toUpperCase()}</div>
+                            }
+                            <span className={`ad-user-status-dot ${u.status === "Active" ? "active" : "inactive"}`} />
+                          </div>
+                          <div className="ad-user-info">
+                            <div className="ad-user-name">{u.name}</div>
+                            <div className="ad-user-email">{u.email}</div>
+                            <div className="ad-user-meta">
+                              <span className={`ad-role-badge ${u.role}`}>{u.role}</span>
+                              <span className="ad-muted-small">Last: {u.lastLogin || "—"}</span>
+                            </div>
+                            <div className="ad-muted-small">
+                              Joined: {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "—"}
+                            </div>
+                          </div>
+                          {u.role !== "admin" && (
+                            <button
+                              className="ad-user-delete-btn"
+                              title="Delete user"
+                              onClick={() => deleteUser(u.id)}
+                            >
+                              <Trash2Icon size={13} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                }
+              </div>
+            </div>
+          )}
+
+          {/* ===== NOTIFICATIONS ===== */}
+          {activeSection === "notifications" && (
+            <div className="ad-section">
+              <div className="ad-card ad-notif-composer-card">
+                <h3 className="ad-card-title">📢 Broadcast to All Users</h3>
+                {sent && (
+                  <div className="ad-sent-banner">✅ Broadcast sent! All users will see this notification.</div>
+                )}
+                <form className="ad-notif-form" onSubmit={sendNotification}>
+                  <input
+                    className="ad-input"
+                    placeholder="Title (e.g. 'Weekend Special Offer!')"
+                    value={notifTitle}
+                    onChange={(e) => setNotifTitle(e.target.value)}
+                  />
+                  <textarea
+                    className="ad-textarea"
+                    placeholder="Write your message to all users…"
+                    rows={3}
+                    value={notifMsg}
+                    onChange={(e) => setNotifMsg(e.target.value)}
+                  />
+                  <button className="ad-send-btn" type="submit" disabled={sending || !notifMsg.trim()}>
+                    <SendIcon size={15} /> {sending ? "Sending…" : "Send Broadcast"}
+                  </button>
+                </form>
+              </div>
+
+              <div className="ad-card">
+                <div className="ad-card-header-row">
+                  <h3 className="ad-card-title">All Notifications</h3>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    {unreadNotifs > 0 && (
+                      <button className="nb-mark-all" onClick={markAllNotifsRead} style={{ fontSize: 12 }}>
+                        <CheckCheckIcon size={13} /> Mark all read
+                      </button>
+                    )}
+                    <span className="ad-badge-count">{unreadNotifs} unread</span>
+                  </div>
+                </div>
+                {allNotifs.length === 0
+                  ? <p className="ad-muted">No notifications yet.</p>
+                  : (
+                    <div className="ad-notif-feed">
+                      {allNotifs.map((n) => {
+                        const isRead = n.readBy.includes(adminUid);
+                        return (
+                          <div key={n.id} className={`ad-notif-row ${isRead ? "read" : "unread"} type-${n.type}`}>
+                            <div className="ad-notif-type-icon" style={{ background: typeColor(n.type) + "18", color: typeColor(n.type) }}>
+                              {typeIcon(n.type)}
+                            </div>
+                            <div className="ad-notif-content">
+                              <div className="ad-notif-head">
+                                <span className="ad-notif-title">{n.title}</span>
+                                <span className="ad-notif-sender">{n.senderName} · {n.senderRole}</span>
+                              </div>
+                              <div className="ad-notif-msg">{n.message}</div>
+                              <div className="ad-notif-time">{n.createdAt ? new Date(n.createdAt).toLocaleString() : ""}</div>
+                            </div>
+                            <div className="ad-notif-actions">
+                              {!isRead && (
+                                <button className="ad-icon-btn" title="Mark read" onClick={() => markNotifRead(n.id)}>
+                                  <CheckIcon size={14} />
+                                </button>
+                              )}
+                              <button className="ad-icon-btn del" title="Delete" onClick={() => deleteNotif(n.id)}>
+                                <Trash2Icon size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )
+                }
+              </div>
+            </div>
+          )}
+
+          {/* ===== MESSAGES ===== */}
+          {activeSection === "messages" && (
+            <div className="ad-section">
+              <div className="ad-card">
+                <div className="ad-card-header-row">
+                  <h3 className="ad-card-title">💬 Messages from Users</h3>
+                  <span className="ad-badge-count">{unreadMsgs} unread</span>
+                </div>
+                {allMsgs.length === 0
+                  ? <p className="ad-muted">No messages yet. Users can send messages from the navbar.</p>
+                  : (
+                    <div className="ad-msg-feed">
+                      {allMsgs.map((m) => (
+                        <div key={m.id} className={`ad-msg-card ${m.readByAdmin ? "read" : "unread"}`}>
+                          <div className="ad-msg-avatar">
+                            {(m.fromName || "?").charAt(0).toUpperCase()}
+                          </div>
+                          <div className="ad-msg-body">
+                            <div className="ad-msg-head">
+                              <div>
+                                <span className="ad-msg-name">{m.fromName}</span>
+                                <span className="ad-msg-email">{m.fromEmail}</span>
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span className="ad-msg-time">{m.createdAt ? new Date(m.createdAt).toLocaleString() : ""}</span>
+                                {!m.readByAdmin && <span className="ad-msg-new-dot" />}
+                              </div>
+                            </div>
+                            <p className="ad-msg-text">{m.message}</p>
+                            {!m.readByAdmin && (
+                              <button className="ad-msg-read-btn" onClick={() => markMsgRead(m.id)}>
+                                <CheckIcon size={12} /> Mark as read
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                }
+              </div>
+            </div>
+          )}
+
+          {/* ===== ANALYTICS ===== */}
+          {activeSection === "analytics" && (
+            <div className="ad-section">
+              <div className="ad-stats-grid">
+                {[
+                  { label: "Total Revenue",   value: fmtKsh(totalRevenue),  cls: "revenue" },
+                  { label: "Total Orders",    value: allOrders.length,      cls: "orders" },
+                  { label: "Registered Users",value: allUsers.length,       cls: "users" },
+                  { label: "Avg Order Value", value: fmtKsh(allOrders.length ? Math.round(totalRevenue / allOrders.length) : 0), cls: "notifs" },
+                ].map((s) => (
+                  <div key={s.label} className={`ad-stat-card ${s.cls}`}>
+                    <div className="ad-stat-body">
+                      <div className="ad-stat-label">{s.label}</div>
+                      <div className="ad-stat-value" style={{ fontSize: 24 }}>{s.value}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="ad-two-col">
+                <div className="ad-card">
+                  <h3 className="ad-card-title">Revenue by Day</h3>
+                  <div style={{ height: 280 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={salesData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip formatter={(v) => [fmtKsh(v), "Revenue"]} />
+                        <Bar dataKey="sales" fill="#ef4444" radius={[5,5,0,0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+                <div className="ad-card">
+                  <h3 className="ad-card-title">Orders per Day</h3>
+                  <div style={{ height: 280 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={salesData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Line type="monotone" dataKey="orders" stroke="#ef4444" strokeWidth={2.5} dot={{ r: 5, fill: "#ef4444" }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
         </main>
       </div>
+    </div>
+  );
+}
 
-      {/* Notifications panel (sliding) */}
-      <aside className={`admindash-notifs ${notifOpen ? "open" : ""}`} aria-hidden={!notifOpen}>
-        <div className="notifs-head">
-          <h3>Notifications</h3>
-          <button className="close-right" onClick={() => setNotifOpen(false)} aria-label="Close"><XIcon /></button>
-        </div>
-
-        <form className="notif-send" onSubmit={sendNotification}>
-          <input placeholder="Message to all users..." value={newNotifText} onChange={(e) => setNewNotifText(e.target.value)} />
-          <button type="submit" className="btn-send" disabled={sendingNotif}>{sendingNotif ? "Sending..." : "Send"}</button>
-        </form>
-
-        <div className="notifs-list">
-          {notifLoading ? <div className="muted">Loading notifications...</div> : null}
-          {!notifLoading && notifications.length === 0 ? <div className="muted">No notifications yet.</div> : null}
-
-          {notifications.map((n) => (
-            <div key={n.id} className={`notif-item ${n.read ? "read" : "unread"}`}>
-              <div className="notif-main">
-                <div className="notif-text">{n.text}</div>
-                <div className="muted small">{n.type} • {n.createdAt ? new Date(n.createdAt).toLocaleString() : ""}</div>
-              </div>
-              <div className="notif-actions">
-                {!n.read && <button className="icon-btn" onClick={() => markNotifRead(n.id)} title="Mark read"><CheckIcon /></button>}
-                <button className="icon-btn del" onClick={() => removeNotif(n.id)} title="Delete"><Trash2Icon /></button>
-              </div>
-            </div>
+/* ---- Order Table sub-component ---- */
+function OrderTable({ orders, onStatusChange }) {
+  if (!orders.length) return <p className="ad-muted">No orders yet.</p>;
+  return (
+    <div className="ad-table-wrap">
+      <table className="ad-table">
+        <thead>
+          <tr>
+            <th>Order ID</th><th>Customer</th><th>Items</th>
+            <th>Total</th><th>Payment</th><th>Status</th><th>Date</th><th>Update</th>
+          </tr>
+        </thead>
+        <tbody>
+          {orders.map((o) => (
+            <tr key={o.orderId || o.id}>
+              <td className="mono">#{o.orderId}</td>
+              <td>
+                <div className="ad-order-customer">{o.customer}</div>
+                <div className="ad-muted-small">{o.email}</div>
+              </td>
+              <td className="ad-muted-small">{(o.items || []).length} item{(o.items||[]).length !== 1 ? "s" : ""}</td>
+              <td><strong>{fmtKsh(o.total)}</strong></td>
+              <td className="ad-muted-small">{o.paymentMethod || "—"}</td>
+              <td>
+                <span className={`ad-badge ${
+                  o.status === "Delivered"  ? "badge-delivered"  :
+                  o.status === "Processing" ? "badge-processing" :
+                  o.status === "Preparing"  ? "badge-preparing"  : "badge-cancelled"
+                }`}>{o.status}</span>
+              </td>
+              <td className="ad-muted-small">{o.createdAt ? new Date(o.createdAt).toLocaleDateString() : "—"}</td>
+              <td>
+                <select
+                  className="ad-status-select"
+                  value={o.status}
+                  onChange={(e) => onStatusChange(o.orderId, e.target.value)}
+                >
+                  {STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
+                </select>
+              </td>
+            </tr>
           ))}
-        </div>
-      </aside>
-
-      {/* Password modal */}
-      {passwordModalOpen && (
-        <div className="modal-backdrop" onClick={() => setPasswordModalOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Change Password</h3>
-            <p className="muted">Enter a new password for the admin account.</p>
-            <div className="modal-row">
-              <input type="password" placeholder="New password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-            </div>
-            <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={() => setPasswordModalOpen(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handlePasswordChange} disabled={updatingPassword}>{updatingPassword ? "Updating..." : "Update Password"}</button>
-            </div>
-          </div>
-        </div>
-      )}
+        </tbody>
+      </table>
     </div>
   );
 }

@@ -1,150 +1,109 @@
+// src/pages/Auth/SignIn.jsx
+// Uses updated AuthContext.login() which:
+//  1. Authenticates with Firebase Auth
+//  2. Updates lastLogin in Firestore
+//  3. Sends "User Logged In" notification to admin
+
 import React, { useState } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { UserIcon, LockIcon, EyeIcon, EyeOffIcon } from "lucide-react";
 import "./SignIn.css";
 
-export default function SignIn() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const { login, isLoading } = useAuth();
+const SignIn = () => {
+  const { login } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const from = location.state?.from?.pathname || "/";
+
+  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (e) => {
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    setError("");
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    if (!formData.email || !formData.password) { setError("Please fill in all fields."); return; }
+
+    setLoading(true);
     try {
-      await login(email, password);
-      if (email === "admin@qikao.com" && password === "admin123") {
-        navigate("/admin");
+      // AuthContext.login() handles:
+      // - Firebase signInWithEmailAndPassword
+      // - lastLogin update in Firestore
+      // - Admin notification (type: "login")
+      const cred = await login(formData.email.trim(), formData.password);
+
+      // Check if user is admin and redirect accordingly
+      // (AuthContext sets user.isAdmin from Firestore role field)
+      navigate("/");
+    } catch (err) {
+      console.error("SignIn error:", err);
+      if (err.code === "auth/user-not-found" || err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
+        setError("Invalid email or password.");
+      } else if (err.code === "auth/too-many-requests") {
+        setError("Too many attempts. Please try again later.");
+      } else if (err.code === "auth/invalid-email") {
+        setError("Invalid email address.");
       } else {
-        navigate(from);
+        setError("Sign in failed. Please try again.");
       }
-    } catch {
-      setError("Failed to sign in. Please check your credentials.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="signin-wrapper">
-      <div className="signin-card">
-        <div className="signin-content">
-          <div className="signin-header">
-            <h1>Welcome Back</h1>
-            <p>Sign in to your Qikao Grill account</p>
-          </div>
-
-          {error && <div className="error-box">{error}</div>}
-
-          <form onSubmit={handleSubmit} className="signin-form">
-          
-            <div className="form-group">
-              <label htmlFor="email">Email Address</label>
-              <div className="input-wrapper">
-                <UserIcon className="input-icon" />
-                <input
-                  id="email"
-                  type="email"
-                  required
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-            </div>
-
-          
-            <div className="form-group">
-              <label htmlFor="password">Password</label>
-              <div className="input-wrapper">
-                <LockIcon className="input-icon" />
-                <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  required
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="show-password-btn"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? (
-                    <EyeOffIcon className="eye-icon" />
-                  ) : (
-                    <EyeIcon className="eye-icon" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            
-            <div className="signin-options">
-              <label className="remember">
-                <input type="checkbox" />
-                Remember me
-              </label>
-              <a href="#" className="forgot-link">
-                Forgot your password?
-              </a>
-            </div>
-
-            
-            <button type="submit" className="signin-btn" disabled={isLoading}>
-              {isLoading ? "Signing in..." : "Sign In"}
-            </button>
-          </form>
-
-          
-          <div className="divider">
-            <span>Or continue with</span>
-          </div>
-
-          
-          <div className="social-buttons">
-            <button className="social-btn google-btn">
-              <img
-                src="https://www.svgrepo.com/show/475656/google-color.svg"
-                alt="Google"
-                className="social-icon"
-              />
-              {/* <span>Google</span> */}
-            </button>
-            <button className="social-btn facebook-btn">
-              <img
-                src="https://www.svgrepo.com/show/475647/facebook-color.svg"
-                alt="Facebook"
-                className="social-icon"
-              />
-              {/* <span>Facebook</span> */}
-            </button>
-          </div>
+    <div className="signin-page">
+      <div className="signin-container">
+        <div className="signin-header">
+          <Link to="/" className="signin-logo">
+            <div className="logo-icon">Q</div>
+            <span>Qikao <span className="logo-red">Grill</span></span>
+          </Link>
+          <h1>Welcome Back</h1>
+          <p>Sign in to your account to continue</p>
         </div>
 
-        
-        <div className="signin-footer">
-          <p>
-            Don't have an account?{" "}
-            <Link to="/register" className="register-link">
-              Register now
-            </Link>
-          </p>
-        </div>
-      </div>
+        <form className="signin-form" onSubmit={handleSubmit}>
+          {error && <div className="signin-error">{error}</div>}
 
-      <div className="admin-demo">
-        <h3>Demo Admin Access:</h3>
-        <p>
-          Email: admin@qikao.com <br />
-          Password: admin123
+          <div className="form-group">
+            <label>Email Address</label>
+            <input
+              type="email"
+              name="email"
+              placeholder="you@example.com"
+              value={formData.email}
+              onChange={handleChange}
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Password</label>
+            <input
+              type="password"
+              name="password"
+              placeholder="Your password"
+              value={formData.password}
+              onChange={handleChange}
+              required
+            />
+          </div>
+
+          <button type="submit" className="signin-btn" disabled={loading}>
+            {loading ? "Signing In…" : "Sign In"}
+          </button>
+        </form>
+
+        <p className="signin-register-link">
+          Don't have an account? <Link to="/register">Create one</Link>
         </p>
       </div>
     </div>
   );
-}
+};
+
+export default SignIn;
