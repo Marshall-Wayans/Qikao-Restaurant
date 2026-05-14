@@ -18,7 +18,7 @@ export default function Footer() {
     <footer className="footer">
       <div className="container">
         <div className="footer-content">
-          {/* ===== About Section ===== */}
+          
           <div className="footer-section about">
             <h3>Qikao Grill</h3>
             <p>
@@ -53,7 +53,7 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* ===== Quick Links ===== */}
+          {/*Quick Links*/}
           <div className="footer-section links">
             <h3>Quick Links</h3>
             <ul>
@@ -75,7 +75,7 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* ===== Contact Info ===== */}
+          {/*Contact*/}
           <div className="footer-section contact">
             <h3>Contact Info</h3>
             <ul>
@@ -97,7 +97,7 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* ===== Newsletter ===== */}
+          {/*Newsletter*/}
           <div className="footer-section newsletter">
             <h3>Newsletter</h3>
             <p>Stay updated with our latest offers and events.</p>
@@ -110,7 +110,7 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* ===== Footer Bottom ===== */}
+        {/*Footer Bottom*/}
         <div className="footer-bottom">
           <p>&copy; {currentYear} Qikao Grill. All rights reserved.</p>
           <div className="footer-bottom-links">

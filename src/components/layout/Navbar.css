@@ -402,10 +402,6 @@
 }
 
 
-/* ================================================================
-   APPEND THESE STYLES TO YOUR EXISTING Navbar.css
-   ================================================================ */
-
 /* ---- User avatar in navbar ---- */
 .user-avatar-sm {
   width: 26px; height: 26px; border-radius: 50%; object-fit: cover;

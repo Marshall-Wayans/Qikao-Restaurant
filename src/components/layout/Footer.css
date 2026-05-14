@@ -10,7 +10,7 @@
   margin: 0 auto;
 }
 
-/* ===== Footer Grid ===== */
+/* Footer Grid*/
 .footer-content {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
@@ -18,14 +18,14 @@
   margin-bottom: 2.5rem;
 }
 
-/* ===== Footer Section Headings ===== */
+/*Footer Section Headings*/
 .footer-section h3 {
   font-size: 1.3rem;
   margin-bottom: 1rem;
   color: #f3f3f3;
 }
 
-/* ===== About Section ===== */
+/*About Section*/
 .footer-section.about p {
   color: #ccc;
   font-size: 0.95rem;
@@ -50,7 +50,7 @@
   transform: scale(1.1);
 }
 
-/* ===== Links Section ===== */
+/*Links Section*/
 .footer-section.links ul {
   list-style: none;
   padding: 0;
@@ -70,7 +70,7 @@
   color: #ff4d00;
 }
 
-/* ===== Contact Section ===== */
+/*Contact Section*/
 .footer-section.contact ul {
   list-style: none;
   padding: 0;
@@ -92,7 +92,7 @@
   flex-shrink: 0;
 }
 
-/* ===== Newsletter ===== */
+/*Newsletter*/
 .newsletter-form {
   display: flex;
   flex-direction: column;
@@ -123,7 +123,7 @@
   background: #e03e00;
 }
 
-/* ===== Footer Bottom ===== */
+
 .footer-bottom {
   border-top: 1px solid #222;
   padding-top: 1.5rem;
@@ -154,7 +154,7 @@
   color: #ff4d00;
 }
 
-/* ===== Responsive ===== */
+
 @media (max-width: 768px) {
   .footer {
     text-align: center;

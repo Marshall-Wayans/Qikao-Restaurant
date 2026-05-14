@@ -27,7 +27,7 @@ export default function Layout() {
 
   return (
     <div className="layout-wrapper">
-      {/* HEADER / NAVBAR */}
+      {/* HEADER and NAVBAR */}
       <header
         className={`layout-header ${isScrolled ? "scrolled" : ""} ${
           isHome ? "home-nav" : "default-nav"
@@ -72,12 +72,12 @@ export default function Layout() {
         </div>
       </header>
 
-      {/* MAIN CONTENT */}
+      
       <main className="layout-main">
         <Outlet />
       </main>
 
-      {/* FOOTER */}
+    
       <Footer />
     </div>
   );

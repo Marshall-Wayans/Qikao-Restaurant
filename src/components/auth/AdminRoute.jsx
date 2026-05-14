@@ -1,16 +1,8 @@
-// src/components/auth/AdminRoute.jsx
-// Protects all /admin/* routes with TWO layers:
-//   1. User must be logged in AND have role === "admin" (from Firestore)
-//   2. Must enter the correct admin PIN (stored only in this file — never in Firestore)
-//
-// The PIN session is kept in sessionStorage so it clears when the browser tab closes.
-// Change ADMIN_PIN below to whatever secret PIN you want.
-
 import React, { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 
-// ✅ Change this to your desired admin PIN
+//This is the Qikao Admin PIN
 const ADMIN_PIN = "qikao2025";
 
 // sessionStorage key — kept per tab, cleared on tab close
@@ -26,7 +18,6 @@ export default function AdminRoute({ children }) {
   );
   const [shake, setShake] = useState(false);
 
-  // Still loading Firebase Auth state
   if (isLoading) {
     return (
       <div style={styles.loader}>
@@ -36,12 +27,12 @@ export default function AdminRoute({ children }) {
     );
   }
 
-  // Not logged in at all → send to sign in
+  //When a user is not logged in, it sends thm to the signin page
   if (!user) {
     return <Navigate to="/signin" replace />;
   }
 
-  // Logged in but not an admin → send home
+  // When a user is logged in but is not an admin, sends them to the home pag
   if (!user.isAdmin && user.role !== "admin") {
     return <Navigate to="/" replace />;
   }
@@ -125,11 +116,10 @@ export default function AdminRoute({ children }) {
     );
   }
 
-  // All checks passed — render the admin page
+
   return children;
 }
 
-/* ---------- Inline styles (no external CSS needed) ---------- */
 const styles = {
   page: {
     minHeight: "100vh",

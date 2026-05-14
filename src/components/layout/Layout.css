@@ -7,10 +7,10 @@
 
 .layout-main {
   flex-grow: 1;
-  padding-top: 80px; /* Space for fixed header */
+  padding-top: 80px; 
 }
 
-/* ====== Header & Navbar ====== */
+/*Header & Navbar*/
 .layout-header {
   position: fixed;
   top: 0;
@@ -52,7 +52,7 @@
   text-decoration: none;
 }
 
-/* ====== Navigation ====== */
+/*Navigation*/
 .layout-nav {
   display: flex;
 }
@@ -75,7 +75,7 @@
   color: #0077ff;
 }
 
-/* ====== CTA Button ====== */
+/*CTA Button*/
 .cta-button {
   background: #0077ff;
   color: #fff;
@@ -90,7 +90,7 @@
   background: #005ecc;
 }
 
-/* ====== Mobile Menu ====== */
+/*Mobile Menu*/
 .menu-toggle {
   display: none;
   background: none;
