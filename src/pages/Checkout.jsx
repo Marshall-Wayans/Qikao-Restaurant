@@ -1,8 +1,3 @@
-// src/pages/Checkout.jsx
-// M-Pesa integration uses Daraja API (Safaricom).
-// Setup instructions are in the comment block below.
-// Payment options: STK Push, Paybill, Buy Goods, QR Code
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
@@ -19,68 +14,10 @@ import {
 import { Orders, Notifications } from "../store/localStore";
 import "./Checkout.css";
 
-/* ================================================================
-   MPESA DARAJA API SETUP INSTRUCTIONS
-   ================================================================
-   1. Go to https://developer.safaricom.co.ke and create an account
-   2. Create an app — you'll get a Consumer Key and Consumer Secret
-   3. For STK Push (Lipa na M-Pesa Online), you need:
-      - Business Short Code (Paybill or Till Number)
-      - Passkey (from Safaricom portal)
-      - Callback URL (a public HTTPS URL — use ngrok for local dev)
 
-   4. Create a backend endpoint (Node/Express example):
-
-      POST /api/mpesa/stkpush
-      Body: { phone, amount, orderId }
-
-      // In your server.js:
-      const axios = require("axios");
-
-      async function getToken() {
-        const res = await axios.get(
-          "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials",
-          { auth: { username: CONSUMER_KEY, password: CONSUMER_SECRET } }
-        );
-        return res.data.access_token;
-      }
-
-      app.post("/api/mpesa/stkpush", async (req, res) => {
-        const token = await getToken();
-        const { phone, amount, orderId } = req.body;
-        const timestamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);
-        const password = Buffer.from(SHORT_CODE + PASSKEY + timestamp).toString("base64");
-
-        const response = await axios.post(
-          "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
-          {
-            BusinessShortCode: SHORT_CODE,
-            Password: password,
-            Timestamp: timestamp,
-            TransactionType: "CustomerPayBillOnline",
-            Amount: amount,
-            PartyA: phone,           // 254XXXXXXXXX format
-            PartyB: SHORT_CODE,
-            PhoneNumber: phone,
-            CallBackURL: "https://yourdomain.com/api/mpesa/callback",
-            AccountReference: orderId,
-            TransactionDesc: "Qikao Grill Order"
-          },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        res.json(response.data);
-      });
-
-   5. For production, change sandbox URLs to:
-      https://api.safaricom.co.ke/...
-
-   6. The callback URL receives payment confirmation — update your
-      order status in the database from there.
-   ================================================================ */
-
-const MPESA_PAYBILL   = "174379";   // ← replace with your paybill
-const MPESA_TILL      = "5678901";  // ← replace with your till
-const MPESA_ACCOUNT   = "QIKAO";    // ← account reference
+const MPESA_PAYBILL   = "174379";   
+const MPESA_TILL      = "5678901";  
+const MPESA_ACCOUNT   = "QIKAO";    
 
 const PAYMENT_OPTIONS = [
   {
@@ -119,7 +56,7 @@ export default function Checkout() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [step, setStep] = useState(1); // 1=cart+delivery, 2=payment, 3=confirm
+  const [step, setStep] = useState(1); 
   const [formData, setFormData] = useState({
     name:    user?.name  || "",
     email:   user?.email || "",
@@ -131,7 +68,7 @@ export default function Checkout() {
   const [paymentOption, setPaymentOption] = useState("stk");
   const [mpesaPhone, setMpesaPhone]       = useState(user?.phone || "");
   const [mpesaCode, setMpesaCode]         = useState("");
-  const [stkState, setStkState]           = useState("idle"); // idle | pending | success | failed
+  const [stkState, setStkState]           = useState("idle"); 
   const [stkMessage, setStkMessage]       = useState("");
   const [orderId, setOrderId]             = useState("");
   const [processing, setProcessing]       = useState(false);
@@ -161,11 +98,11 @@ export default function Checkout() {
     setErrors((p) => ({ ...p, [e.target.name]: undefined }));
   };
 
-  /* ---- STK Push (calls your backend) ---- */
+ 
   async function initiateSTKPush() {
     if (!mpesaPhone.trim()) { setStkMessage("Please enter your M-Pesa phone number."); return; }
 
-    // Normalize phone: 07XX → 2547XX
+    
     let phone = mpesaPhone.replace(/\s/g, "");
     if (phone.startsWith("07")) phone = "254" + phone.slice(1);
     if (phone.startsWith("+"))  phone = phone.slice(1);
@@ -194,7 +131,7 @@ export default function Checkout() {
     }
   }
 
-  /* ---- Finalise order (save + notify admin) ---- */
+  /* Finalise order (save + notify admin)*/
   async function finaliseOrder() {
     setProcessing(true);
     const id = `QK${Math.floor(100000 + Math.random() * 900000)}`;
@@ -269,7 +206,7 @@ export default function Checkout() {
           </div>
         )}
 
-        {/* ===== STEP 1: Delivery ===== */}
+        {/*STEP 1: Delivery*/}
         {step === 1 && (
           <div className="checkout-grid">
             <div className="checkout-left">
@@ -350,7 +287,7 @@ export default function Checkout() {
             </button>
 
             <div className="ck-payment-grid">
-              {/* Left: Payment options */}
+              {/*Payment options */}
               <div className="ck-payment-left">
                 <h2>Choose Payment Method</h2>
                 <p className="ck-payment-sub">All payments are processed securely via M-Pesa</p>
@@ -505,7 +442,7 @@ export default function Checkout() {
           </div>
         )}
 
-        {/* ===== STEP 3: Confirmation ===== */}
+        {/*STEP 3: Confirmation*/}
         {step === 3 && (
           <div className="checkout-confirm">
             <div className="checkout-confirm-box">

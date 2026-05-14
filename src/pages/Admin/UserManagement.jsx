@@ -41,7 +41,7 @@ import {
 } from "firebase/auth";
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 
-/* === Your Firebase config (same as your UserManagement / Register) === */
+
 const firebaseConfig = {
   apiKey: "AIzaSyAyjaElKlH8kOOkrlRD6DxROgHFU3z-w_M",
   authDomain: "qikao-dashboard.firebaseapp.com",
@@ -119,7 +119,7 @@ export default function UserManagement() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  /* ----------------------- realtime users ------------------------ */
+  /*realtime users*/
   useEffect(() => {
     setLoadingUsers(true);
     const q = query(collection(db, "users"), orderBy("createdAt", "desc"));
@@ -152,7 +152,7 @@ export default function UserManagement() {
     return () => unsub();
   }, []);
 
-  /* -------------------- realtime notifications -------------------- */
+  /*realtime notifications */
   useEffect(() => {
     const q = query(collection(db, "notifications"), orderBy("createdAt", "desc"));
     const unsub = onSnapshot(
@@ -181,7 +181,7 @@ export default function UserManagement() {
     return () => unsub();
   }, []);
 
-  /* ------------------------- filtered list ------------------------ */
+  /*filtered list*/
   const filteredUsers = users.filter(
     (u) =>
       u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -189,7 +189,7 @@ export default function UserManagement() {
       (u.role ?? "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  /* ------------------------ add user (admin) ---------------------- */
+  /*add user admin only*/
   const handleAddUser = async (e) => {
     e.preventDefault();
     if (!newUser.name || !newUser.email || !newUser.password) {
@@ -197,13 +197,13 @@ export default function UserManagement() {
       return;
     }
     try {
-      // create auth user (optional)
+      // create auth user 
       let createdUid = null;
       try {
         const cred = await createUserWithEmailAndPassword(auth, newUser.email, newUser.password);
         createdUid = cred.user.uid;
       } catch (authErr) {
-        // If auth creation fails (e.g., email already exists), we still create Firestore doc.
+        
         console.warn("Auth creation (optional) failed:", authErr);
       }
 
@@ -218,7 +218,7 @@ export default function UserManagement() {
         photoURL: "",
       });
 
-      // Optionally create a system notification for admin-created user
+      
       await addDoc(collection(db, "notifications"), {
         type: "system",
         title: "User added",
@@ -235,7 +235,7 @@ export default function UserManagement() {
     }
   };
 
-  /* ------------------------- edit user --------------------------- */
+  /*edit user*/
   const openEdit = (user) => {
     setEditUser({ ...user });
     setShowEditModal(true);
@@ -267,7 +267,7 @@ export default function UserManagement() {
     }
   };
 
-  /* ------------------------ delete user -------------------------- */
+  /*delete user*/
   const handleDeleteUser = async (id, name) => {
     if (!window.confirm(`Delete user "${name}"? This cannot be undone.`)) return;
     try {
@@ -285,7 +285,7 @@ export default function UserManagement() {
     }
   };
 
-  /* --------------------- send admin notification ------------------ */
+  /*send admin notification*/
   const handleSendAdminNotif = async (e) => {
     e.preventDefault();
     if (!notifMessage.trim()) {
@@ -309,19 +309,19 @@ export default function UserManagement() {
     }
   };
 
-  /* -------------------- profile image upload --------------------- */
+  /*profile image upload*/
   const triggerProfileSelect = () => profileInputRef.current && profileInputRef.current.click();
 
   const handleProfileFile = async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
 
-    // preview
+   
     const preview = URL.createObjectURL(file);
     setProfilePhoto(preview);
     setProfileDropdownOpen(false);
 
-    // Upload and (optionally) update the admin's user doc in Firestore
+
     try {
       const currentUser = auth.currentUser;
       const uid = currentUser ? currentUser.uid : "admin";
@@ -329,7 +329,7 @@ export default function UserManagement() {
       await uploadBytes(sRef, file);
       const downloadURL = await getDownloadURL(sRef);
 
-      // If you maintain admin doc in users collection with id == uid, update it:
+      
       if (currentUser) {
         await updateDoc(doc(db, "users", uid), { photoURL: downloadURL, updatedAt: serverTimestamp() });
       }
@@ -338,7 +338,7 @@ export default function UserManagement() {
     }
   };
 
-  /* ------------------------ update password ---------------------- */
+  /*update password*/
   const handlePasswordUpdate = async () => {
     if (newPassword.length < 6) {
       alert("Password must be at least 6 characters.");
@@ -360,7 +360,7 @@ export default function UserManagement() {
     }
   };
 
-  /* --------------------------- logout ---------------------------- */
+  /*logout*/
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -371,7 +371,7 @@ export default function UserManagement() {
     }
   };
 
-  /* --------------------- close dropdowns on click ----------------- */
+
   useEffect(() => {
     const onDocClick = (e) => {
       const target = e.target;
@@ -385,7 +385,7 @@ export default function UserManagement() {
 
   return (
     <div className="um-root">
-      {/* SIDEBAR */}
+      
       <aside className={`um-sidebar ${sidebarOpen ? "um-open" : ""}`}>
         <div className="um-sidebar-top">
           <div className="um-brand">
@@ -556,7 +556,7 @@ export default function UserManagement() {
         </main>
       </div>
 
-      {/* NOTIFICATIONS PANEL (always visible on the right when wide) */}
+      {/* NOTIFICATIONS PANEL*/}
       <aside className="um-notifs">
         <div className="um-notifs-header">
           <div className="um-notifs-title">
@@ -682,7 +682,6 @@ export default function UserManagement() {
   );
 }
 
-/* small helper */
 function statusClass(status) {
   return status === "Active" ? "um-badge-green" : "um-badge-red";
 }

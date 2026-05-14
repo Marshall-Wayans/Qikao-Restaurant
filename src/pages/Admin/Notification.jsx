@@ -1,4 +1,3 @@
-// src/components/Notifications/Notifications.jsx
 import React, { useEffect, useState, useRef } from "react";
 import {
   BellIcon,
@@ -9,9 +8,7 @@ import {
 } from "lucide-react";
 import "./Notifications.css";
 
-// Firebase imports - adjust path to your firebase export
-// I assume you export a Firestore instance named `db` from ../../firebase
-import { db } from "../../firebase"; // <-- adjust if your file is at a different path
+import { db } from "../../firebase";
 import {
   collection,
   query,
@@ -25,11 +22,11 @@ import {
   arrayUnion,
 } from "firebase/firestore";
 
-// Auth context - adjust import path if different in your project
-import { useAuth } from "../../context/AuthContext"; // <-- adjust if needed
+
+import { useAuth } from "../../context/AuthContext"; 
 
 export default function Notifications({ className = "" }) {
-  const { user } = useAuth(); // expected shape: { uid, displayName, email, role || isAdmin }
+  const { user } = useAuth();
   const uid = user?.uid ?? null;
   const isAdmin = (user && (user.role === "admin" || user.isAdmin)) ?? false;
 
@@ -94,7 +91,7 @@ export default function Notifications({ className = "" }) {
 
   const unreadCount = notifications.filter((n) => !(n.readBy || []).includes(uid)).length;
 
-  // send/broadcast notification (admin only)
+  // sends notification to the admin only
   async function handleSend(e) {
     e && e.preventDefault();
     if (!isAdmin) {
@@ -114,7 +111,7 @@ export default function Notifications({ className = "" }) {
         senderName: user?.displayName || user?.email || "Admin",
         senderRole: user?.role || (isAdmin ? "admin" : "system"),
         createdAt: serverTimestamp(),
-        readBy: [], // nobody has read at creation
+        readBy: [], 
       });
       setTitle("");
       setMessage("");
@@ -128,7 +125,7 @@ export default function Notifications({ className = "" }) {
     }
   }
 
-  // delete notification (admin only)
+  // delete notification for the admin only
   async function handleDelete(id) {
     if (!isAdmin) {
       showToast("Only admins can delete notifications.");
@@ -144,7 +141,7 @@ export default function Notifications({ className = "" }) {
     }
   }
 
-  // mark as read for current user
+  // mark as read for the current user
   async function markAsRead(nId, alreadyRead) {
     if (!uid) {
       showToast("Sign in to mark read");
@@ -155,7 +152,7 @@ export default function Notifications({ className = "" }) {
       await updateDoc(doc(db, "notifications", nId), {
         readBy: arrayUnion(uid),
       });
-      // local state will update via onSnapshot
+     
     } catch (err) {
       console.error("mark read", err);
       showToast("Failed to mark read");
@@ -174,7 +171,7 @@ export default function Notifications({ className = "" }) {
 
   return (
     <>
-      {/* Bell button - you can also render this in your Navbar instead */}
+      
       <div className={`qk-notif-bell ${className}`}>
         <button
           className="qk-bell-btn"
@@ -187,7 +184,7 @@ export default function Notifications({ className = "" }) {
         </button>
       </div>
 
-      {/* Sliding panel */}
+      
       <aside className={`qk-notif-panel ${open ? "open" : ""}`} role="region" aria-hidden={!open}>
         <div className="qk-notif-header">
           <div className="qk-notif-title">
@@ -201,7 +198,7 @@ export default function Notifications({ className = "" }) {
           </div>
         </div>
 
-        {/* Composer (admin only) */}
+        
         {isAdmin && (
           <form className="qk-composer" onSubmit={handleSend}>
             <input
@@ -275,7 +272,7 @@ export default function Notifications({ className = "" }) {
           <small className="qk-muted">Real-time notifications — {isAdmin ? "admin" : "user"} view</small>
         </div>
 
-        {/* simple inline toast */}
+        
         {toast && <div className="qk-toast">{toast}</div>}
       </aside>
     </>
